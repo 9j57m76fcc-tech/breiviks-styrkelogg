@@ -7,7 +7,7 @@
 <style>
 :root{color-scheme:dark;--bg:#0d1524;--panel:#19263a;--panel2:#202f45;--text:#f4f8ff;--muted:#b8c5d6;--green:#69e1b7;--line:#35445a;--red:#ffb1ad}*{box-sizing:border-box}body{background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;padding-bottom:calc(82px + env(safe-area-inset-bottom))}main,header{max-width:650px;margin:auto;padding:20px}header{padding-top:calc(20px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between}h1{font-size:25px;line-height:1.2;color:var(--green);margin:0}h2{font-size:21px;margin:0 0 12px}h3{font-size:17px;margin:0 0 9px}p{margin:8px 0;color:var(--muted)}small,.small{font-size:13px;color:var(--muted)}.card{background:var(--panel);border:1px solid var(--line);border-radius:19px;padding:19px;margin:0 0 15px}.hero{background:linear-gradient(135deg,#1b3841,#1c2740);border:1px solid #37685c}.row{display:flex;gap:10px;align-items:center;justify-content:space-between}.wrap{flex-wrap:wrap}.pill{display:inline-block;background:#244c45;color:#8cf7d2;border-radius:99px;padding:4px 11px;font-size:12px}.muted{color:var(--muted)}button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;background:var(--green);color:#10231f;font-weight:750;padding:13px 15px;min-height:46px}button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}button.tiny{min-height:35px;padding:7px 12px;font-size:13px}button:disabled{opacity:.45}input,select{display:block;width:100%;border:1px solid #52627a;background:#101b2c;border-radius:11px;color:var(--text);padding:12px;margin:6px 0 12px;min-height:45px}label{font-weight:600;display:block;margin-top:10px;font-size:14px}input[type=number]{appearance:textfield}.hidden{display:none!important}.notice{border:1px solid #537b6d;background:#18392f;color:#ddfff1;padding:12px;border-radius:12px;margin:10px 0}.error{border-color:#8d504f;background:#472b30;color:#ffe1e0}.tabs{position:fixed;bottom:0;left:0;right:0;background:#101b2b;border-top:1px solid var(--line);display:flex;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:10}.tabs>div{max-width:650px;display:flex;width:100%;justify-content:space-around}.tabs button{background:none;color:var(--muted);font-size:12px;min-height:52px;padding:5px 10px;display:grid;place-items:center;gap:2px}.tabs button.active{color:var(--green)}.tabs b{font-size:21px}.stat{flex:1;min-width:100px;text-align:center;border-radius:12px;padding:11px;background:#152c34}.stat strong{font-size:25px;color:var(--green);display:block}.exercise{padding:16px 0;border-top:1px solid var(--line)}.fields{display:grid;grid-template-columns:1fr 1fr;gap:11px}.score{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}.good{color:var(--green)}.right{text-align:right}.loader{opacity:.7}.subtle{font-size:13px;color:var(--muted)}.wide{width:100%}.btnrow{display:flex;gap:9px;flex-wrap:wrap}.btnrow button{flex:1}.checkline{display:flex;gap:10px;align-items:center}.checkline input{width:22px;height:22px;margin:0;accent-color:#69e1b7}.checkline label{margin:0}.name{font-weight:800;font-size:18px}.divider{border:0;border-top:1px solid var(--line);margin:16px 0}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 </head>
 <body>
 <header><h1>Breiviks styrkelogg 💪</h1><button class="tiny secondary hidden" id="logout">Logg ut</button></header>
@@ -27,7 +27,24 @@
 const URL='https://gueaitkspadvnacotvri.supabase.co';
 const PUBLIC_KEY='sb_publishable_o8GAc3PhWe5d4jWpLUsEOg_XESpWaaq';
 const $=id=>document.getElementById(id);
-const sb=window.supabase?.createClient(URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+let sb=null;
+let sdkLoad=null;
+function loadSDK(){
+  if(sdkLoad)return sdkLoad;
+  sdkLoad=new Promise((resolve,reject)=>{
+    if(window.supabase?.createClient)return resolve(window.supabase);
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    script.async=true;
+    let finished=false;
+    const timeout=setTimeout(()=>{if(finished)return;finished=true;script.remove();reject(Error('Supabase-biblioteket svarer ikke. Sjekk innholdsblokkering eller nettverk.'));},9000);
+    script.onload=()=>{if(finished)return;finished=true;clearTimeout(timeout);window.supabase?.createClient?resolve(window.supabase):reject(Error('Supabase-biblioteket kunne ikke starte.'));};
+    script.onerror=()=>{if(finished)return;finished=true;clearTimeout(timeout);reject(Error('Kunne ikke laste Supabase-biblioteket. Prøv en annen nettleser eller nettverk.'));};
+    document.head.appendChild(script);
+  });
+  return sdkLoad;
+}
+async function ensureClient(){if(sb)return sb;const sdk=await loadSDK();sb=sdk.createClient(URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true}});return sb;}
 let user=null,profile=null,family=null,memberId=null,workouts=[],workoutProgram='A',schema=null;
 let offline=false;
 const programs={
@@ -63,7 +80,7 @@ async function authAction(type){
   authStatus(type==='signup'?'Registrerer brukeren …':'Logger inn …');
   button.disabled=true;
   try{
-    if(!sb)throw Error('Innloggingstjenesten ble ikke lastet. Prøv å åpne siden på nytt.');
+    await ensureClient();
     const email=$('email').value.trim(),password=$('password').value,name=$('displayName').value.trim();
     if(!email||!password)throw Error('Fyll inn e-post og passord.');
     if(type==='signup'&&!name)throw Error('Fyll inn fornavn for å registrere deg.');
@@ -105,8 +122,8 @@ function renderHistory(){const m=allMy();$('history').innerHTML=m.length?m.map(w
 async function renderLeague(){if(!family)return;const users=await sb.from('family_members').select('user_id').eq('family_id',family.id);const ids=(users.data||[]).map(x=>x.user_id);const members=ids.length?await sb.from('profiles').select('id,display_name').in('id',ids):{data:[]};const pts={};for(const id of ids)pts[id]={name:(members.data||[]).find(x=>x.id===id)?.display_name||'Familiemedlem',points:0,week:0};const week=startOfWeek();for(const w of workouts){if(!pts[w.user_id])pts[w.user_id]={name:'Familiemedlem',points:0,week:0};pts[w.user_id].points+=Number(w.points||0);if(new Date(w.workout_date)>=week)pts[w.user_id].week++;}const rank=Object.values(pts).sort((a,b)=>b.points-a.points);const html=rank.length?rank.map((m,i)=>'<div class="score"><span>'+(i===0?'🥇':i===1?'🥈':i===2?'🥉':'🏅')+' '+esc(m.name)+'<div class="small">'+m.week+' økter denne uken</div></span><strong>'+m.points+' poeng</strong></div>').join(''):'<p>Ingen familiemedlemmer registrert ennå.</p>';$('league').innerHTML=html;$('miniLeague').innerHTML=html;$('weekSummary').innerHTML='<p>Uken begynte '+week.toLocaleDateString('no-NO')+'.</p>'+(rank.map(m=>'<div class="score"><span>'+esc(m.name)+'</span><strong>'+m.week+'/2 økter</strong></div>').join(''));}
 function renderProfile(){if(!family)return;$('familyLabel').textContent=family.name;$('inviteCode').textContent=family.invite_code;$('syncInfo').textContent=offline?'⚠ Vi fikk ikke lest treningsdata fra databasen.':'Tilkoblet Supabase. '+workouts.filter(x=>x.pending).length+' økt(er) kun lagret på denne telefonen.';}
 window.addEventListener('error',e=>authStatus('Teknisk feil: '+e.message,true));window.addEventListener('unhandledrejection',e=>authStatus('Tilkoblingsfeil: '+(e.reason?.message||e.reason),true));
-authStatus(sb?'Klar for registrering.':'Innloggingstjenesten kunne ikke lastes. Sjekk nettet og oppdater siden.',!sb);
+authStatus('Klar til å prøve innlogging.');
 $('login').onclick=()=>authAction('login');$('signup').onclick=()=>authAction('signup');$('createFamily').onclick=createFamily;$('joinFamily').onclick=joinFamily;$('logout').onclick=async()=>{await sb.auth.signOut();user=profile=family=null;workouts=[];clearNotice();await setup();};$('saveWorkout').onclick=saveWorkout;$('cancelWorkout').onclick=()=>setPage('home');$('refresh').onclick=loadData;$('copyCode').onclick=async()=>{try{await navigator.clipboard.writeText(family.invite_code);notify('Invitasjonskoden er kopiert.');}catch{notify('Koden er '+family.invite_code);}};document.querySelectorAll('[data-start]').forEach(x=>x.onclick=()=>startWorkout(x.dataset.start));document.querySelectorAll('[data-page]').forEach(x=>x.onclick=()=>setPage(x.dataset.page));
-(async()=>{try{if(!sb)return authStatus('Kunne ikke laste Supabase. Kontroller internett eller innholdsblokkering.',true);const {data:{session},error}=await sb.auth.getSession();if(error)throw error;user=session?.user||null;await setup();sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;setup();}});}catch(e){authStatus('Oppstartsfeil: '+(e.message||e),true);}})();
+(async()=>{try{authStatus('Kobler til innlogging …');await ensureClient();authStatus('Tilkobling klar. Du kan registrere deg eller logge inn.');const result=await Promise.race([sb.auth.getSession(),new Promise((_,reject)=>setTimeout(()=>reject(Error('Tilkoblingen svarte ikke innen 10 sekunder.')),10000))]);if(result.error)throw result.error;user=result.data.session?.user||null;if(user)await setup();sb.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){user=null;setup();}});}catch(e){authStatus('Tilkoblingsfeil: '+(e.message||e)+ ' Du kan prøve registrering på nytt.',true);}})();
 </script>
 </body></html>

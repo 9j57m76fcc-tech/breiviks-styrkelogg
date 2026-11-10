@@ -23,8 +23,8 @@
 <nav id="nav" class="tabs hidden"><div><button data-page="home" class="active"><b>⌂</b>Hjem</button><button data-page="history"><b>▤</b>Historikk</button><button data-page="league"><b>★</b>Liga</button><button data-page="profile"><b>⚙</b>Familie</button></div></nav>
 <script>
 'use strict';
-// Public URL and publishable key. NEVER put service_role or secret keys here.
-const URL='https://gueaitkspadvnacotvri.supabase.co';
+// Public SUPABASE_PROJECT_URL and publishable key. NEVER put service_role or secret keys here.
+const SUPABASE_PROJECT_URL='https://gueaitkspadvnacotvri.supabase.co';
 const PUBLIC_KEY='sb_publishable_o8GAc3PhWe5d4jWpLUsEOg_XESpWaaq';
 const $=id=>document.getElementById(id);
 let sb=null;
@@ -44,7 +44,7 @@ function loadSDK(){
   });
   return sdkLoad;
 }
-async function ensureClient(){if(sb)return sb;const sdk=await loadSDK();sb=sdk.createClient(URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true}});return sb;}
+async function ensureClient(){if(sb)return sb;const sdk=await loadSDK();sb=sdk.createClient(SUPABASE_PROJECT_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true}});return sb;}
 let user=null,profile=null,family=null,memberId=null,workouts=[],workoutProgram='A',schema=null;
 let offline=false;
 const programs={
@@ -66,7 +66,7 @@ function localKey(){return 'breiviks-log-'+(user?.id||'guest');}
 function readLocal(){try{return JSON.parse(localStorage.getItem(localKey())||'[]');}catch{return [];}}
 function saveLocal(x){localStorage.setItem(localKey(),JSON.stringify(x));}
 function normalizeRow(r){const raw=r.details||r.exercises||r.entries||r.data||r.results||r.log||null;let detail=raw;if(typeof raw==='string'){try{detail=JSON.parse(raw)}catch{detail={note:raw}}}return {id:r.id,family_id:r.family_id,user_id:r.user_id,program_id:r.program_id,workout_date:r.workout_date||r.created_at||new Date().toISOString(),points:r.points??(r.program_id==='BONUS'?5:10),details:detail??{},note:r.notes||'',local:false};}
-async function detectSchema(){try{const {data:{session}}=await sb.auth.getSession();const res=await fetch(URL+'/rest/v1/',{headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+(session?.access_token||PUBLIC_KEY),Accept:'application/openapi+json'}});if(!res.ok)return null;const d=await res.json();const def=d.definitions?.workouts||d.components?.schemas?.workouts;return def?.properties||null;}catch{return null;}}
+async function detectSchema(){try{const {data:{session}}=await sb.auth.getSession();const res=await fetch(SUPABASE_PROJECT_URL+'/rest/v1/',{headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+(session?.access_token||PUBLIC_KEY),Accept:'application/openapi+json'}});if(!res.ok)return null;const d=await res.json();const def=d.definitions?.workouts||d.components?.schemas?.workouts;return def?.properties||null;}catch{return null;}}
 async function loadData(){if(!family)return;const {data,error}=await sb.from('workouts').select('*').eq('family_id',family.id).order('workout_date',{ascending:false}).limit(500);if(error){offline=true;notify('Treningsdata kan ikke leses fra Supabase ennå: '+error.message,true);workouts=readLocal();}else{offline=false;const cloud=(data||[]).map(normalizeRow);const pending=readLocal().filter(x=>x.pending&&!cloud.some(y=>y.id===x.id));workouts=[...cloud,...pending];}schema=await detectSchema();renderAll();}
 async function ensureProfile(){if(!user)return;const {data,error}=await sb.from('profiles').select('*').eq('id',user.id).maybeSingle();if(error)throw error;if(data){profile=data;return;}const display_name=(localStorage.getItem('breiviks-pending-name')||user.user_metadata?.display_name||user.email?.split('@')[0]||'Familiemedlem').trim();const ins=await sb.from('profiles').upsert({id:user.id,display_name}).select('*').single();if(ins.error)throw ins.error;profile=ins.data;}
 async function setup(){hide('auth');hide('familySetup');hide('app');hide('nav');hide('logout');if(!user){show('auth');return;}show('logout');try{await ensureProfile();const membership=await sb.from('family_members').select('family_id').eq('user_id',user.id).maybeSingle();if(membership.error)throw membership.error;if(!membership.data){show('familySetup');return;}memberId=membership.data.family_id;const fam=await sb.from('families').select('*').eq('id',memberId).single();if(fam.error)throw fam.error;family=fam.data;show('app');show('nav');$('welcome').textContent='Hei, '+profile.display_name+'!';await loadData();setPage('home');}catch(e){show('familySetup');notify('Vi må kontrollere databasen før vi kan fortsette: '+(e.message||e),true);}}

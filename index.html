@@ -17,6 +17,7 @@ const ORIGINAL='https://raw.githubusercontent.com/9j57m76fcc-tech/breiviks-styrk
 const replacements=[
  ['Hver registrerte aktivitet over 30 minutter gir 5 poeng.','Hver registrerte aktivitet på 20 minutter eller mer gir 5 poeng.'],
  ['Over 30 minutter gir 5 poeng.','20 minutter eller mer gir 5 poeng.'],
+ ['<option value="Annet">✨ Annet</option>','<option value="Turn">🤸 Turn</option><option value="Annet">✨ Annet</option>'],
  ['Number(r.duration_minutes)>30?5:0','Number(r.duration_minutes)>=20?5:0'],
  ['activityBonusMinutes()>30?5:0','activityBonusMinutes()>=20?5:0'],
  ["duration>30?'Du får 5 poeng.':'Denne økten ga ingen poeng (30 minutter eller kortere).'","duration>=20?'Du får 5 poeng.':'Denne økten ga ingen poeng (under 20 minutter).'"],

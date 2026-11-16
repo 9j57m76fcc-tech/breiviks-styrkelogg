@@ -20,7 +20,41 @@ const replacements=[
  ['Number(r.duration_minutes)>30?5:0','Number(r.duration_minutes)>=20?5:0'],
  ['activityBonusMinutes()>30?5:0','activityBonusMinutes()>=20?5:0'],
  ["duration>30?'Du får 5 poeng.':'Denne økten ga ingen poeng (30 minutter eller kortere).'","duration>=20?'Du får 5 poeng.':'Denne økten ga ingen poeng (under 20 minutter).'"],
- ["Number(w.duration_minutes)>30?'Aktivitetsbonus':'Kort økt'","Number(w.duration_minutes)>=20?'Aktivitetsbonus':'Kort økt'"]
+ ["Number(w.duration_minutes)>30?'Aktivitetsbonus':'Kort økt'","Number(w.duration_minutes)>=20?'Aktivitetsbonus':'Kort økt'"],
+ // New member profile screen shown only to signed-in members of the same family.
+ ['<div id="profilePage" class="hidden">', `<div id="memberPage" class="hidden"><div class="card"><div class="row"><h2 id="memberTitle">Treningsøkter</h2><button type="button" class="tiny secondary" id="memberBack">Tilbake</button></div><p>Treningsøkter og bilder som er delt med familien.</p><div id="memberHistory" class="history-list"></div></div></div><div id="profilePage" class="hidden">`],
+ ["'league','profile'])$(x+'Page')", "'league','profile','member'])$(x+'Page')"],
+ ["pts[id]={name:(members.data||[])", "pts[id]={id,name:(members.data||[])"],
+ ["pts[w.user_id]={name:'Familiemedlem'", "pts[w.user_id]={id:w.user_id,name:'Familiemedlem'"],
+ ["$('miniLeague').innerHTML=html;", `$('miniLeague').innerHTML=html;
+ for(const list of [$('league'),$('miniLeague')])list.querySelectorAll('.score').forEach((row,i)=>{
+  const member=rank[i];if(!member)return;
+  const span=row.querySelector('span');if(!span)return;
+  const button=document.createElement('button');button.type='button';button.className='member-open';
+  button.textContent=member.name+' · Se treningsøkter og bilder ›';
+  button.addEventListener('click',()=>openMember(member.id,member.name));span.replaceWith(button);
+ });`],
+ ["window.addEventListener('error',", `function openMember(memberId,memberName){
+ if(!family||!user)return;
+ const familySessions=workouts.filter(w=>w.user_id===memberId&&!w.pending).sort((a,b)=>new Date(b.workout_date)-new Date(a.workout_date));
+ $('memberTitle').textContent=memberName+' – treningsøkter';
+ const html=familySessions.map(w=>{
+  const activity=w.program_id==='ACTIVITY';
+  const title=activity?(w.activity_type||'Annen trening'):(programs[w.program_id]?.name||w.program_id);
+  const exercises=w.details?.exercises||[];const note=w.note||w.details?.note||'';
+  const photoPaths=Array.isArray(w.photo_paths)?w.photo_paths:[];
+  const img=photoPaths.map(path=>'<img class="history-photo" hidden data-photo-path="'+esc(path)+'" alt="Bilde fra treningsøkten" loading="lazy">').join('');
+  const activityInfo=activity?'<p>'+esc(w.duration_minutes||0)+' minutter · '+esc(w.activity_type||'Annen trening')+'</p>':'';
+  const exerciseInfo=!activity&&exercises.length?'<details class="history-details"><summary>Se øvelser og sett</summary><div class="history-body">'+exercises.map(historyExerciseHTML).join('')+'</div></details>':'';
+  return '<article class="history-card"><div class="history-top"><div><h3 class="history-title">'+esc(title)+'</h3><div class="history-meta"><span class="badge">📅 '+new Date(w.workout_date).toLocaleDateString('no-NO')+'</span></div></div><div class="points-badge">+'+Number(w.points||0)+'</div></div>'+activityInfo+exerciseInfo+(note?'<div class="history-note"><strong>Notat:</strong> '+esc(note)+'</div>':'')+img+'</article>';
+ }).join('');
+ $('memberHistory').innerHTML=html||'<p>Ingen registrerte treningsøkter ennå.</p>';
+ setPage('member');showHistoryPhotos();
+}
+$('memberBack').addEventListener('click',()=>setPage('league'));
+window.addEventListener('error',`],
+ ['</style>', `.member-open{display:block;background:transparent;color:var(--text);border:0;text-align:left;font-size:16px;line-height:1.4;padding:8px 0;min-height:44px;max-width:75%;cursor:pointer}.member-open:focus-visible{outline:2px solid var(--green);outline-offset:3px}.member-open:hover{color:var(--green)}
+</style>`]
 ];
 async function start(){
  const status=document.getElementById('load-status'),button=document.getElementById('retry');
@@ -36,7 +70,7 @@ async function start(){
    if(!source.includes(oldText))throw Error('Originalappen er ikke som forventet. Endringen er stoppet for å unngå feil.');
    source=source.split(oldText).join(newText);
   }
-  if(!source.includes("activityBonusMinutes()>=20?5:0"))throw Error('Poengberegningen kunne ikke oppdateres.');
+  if(!source.includes("activityBonusMinutes()>=20?5:0")||!source.includes("function openMember("))throw Error('Poengberegningen kunne ikke oppdateres.');
   document.open();document.write(source);document.close();
  }catch(error){status.className='error';status.textContent='Kunne ikke åpne Styrkeloggen: '+(error.message||error)+' Kontroller nettforbindelsen, og prøv igjen.';button.hidden=false;}
 }
